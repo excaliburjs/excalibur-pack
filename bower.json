@@ -28,6 +28,7 @@
     "tests"
   ],
   "dependencies": {
-    "excalibur": "~0.6.0"
+    "excalibur": "~0.6.0",
+    "jszip": "Stuk/jszip#~2.5.0"
   }
 }
