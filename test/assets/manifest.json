@@ -1,0 +1,19 @@
+{
+   "files": [
+      {
+         "type": 1,
+         "path": "angry.png",
+         "name": "angry"
+      },
+      {
+         "type": 1,
+         "path": "sad.png",
+         "name": "sad"
+      },
+      {
+         "type": 1,
+         "path": "playful.png",
+         "name": "playful"
+      }
+   ]
+}

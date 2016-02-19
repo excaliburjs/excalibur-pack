@@ -4,9 +4,9 @@
 namespace ex.Extensions.Pack {
    
    enum ManifestFileType {
-      Sound,
-      Texture,
-      Generic
+      Sound = 0,
+      Texture = 1,
+      Generic = 2
    }
    
    interface PackManifest {
@@ -40,7 +40,7 @@ namespace ex.Extensions.Pack {
     * @param str The function name
     * @see http://stackoverflow.com/a/2441972
     */
-   function strToFn(fnName: string): FunctionConstructor {
+   var strToFn = function strToFn(fnName: string): any {
       
       // split namespaces
       var arr = fnName.split(".");
@@ -76,7 +76,7 @@ namespace ex.Extensions.Pack {
          
          this._resourceObj = resourceObj;                 
       }
-      
+            
       /**
        * Overrides processDownload and decompresses/unzips the pack file
        */
@@ -107,7 +107,6 @@ namespace ex.Extensions.Pack {
                
                // process file
                var resource: ILoadable;
-               var data: any;
                
                switch (file.type) {
                   case ManifestFileType.Sound:
@@ -120,7 +119,9 @@ namespace ex.Extensions.Pack {
                   case ManifestFileType.Texture:
                      resource = new ex.Texture(<string>file.path, this.bustCache);
                      
-                     data = zip.file(<string>file.path);
+                     resource.setData(new Blob([
+                        zip.file(<string>file.path).asUint8Array()
+                     ], { type: 'application/octet-binary' }));                     
                      
                      break;
                   case ManifestFileType.Generic:
@@ -138,8 +139,8 @@ namespace ex.Extensions.Pack {
                      break;
                }
                
-               // load and process resource
-               resource.processData(data);
+               // load immediately to resolve pending promises
+               resource.load();
                
                // populate resource hashmap
                this._resourceObj[file.name] = resource;                             

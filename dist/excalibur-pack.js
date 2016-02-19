@@ -23,7 +23,7 @@ var ex;
              * @param str The function name
              * @see http://stackoverflow.com/a/2441972
              */
-            function strToFn(fnName) {
+            var strToFn = function strToFn(fnName) {
                 // split namespaces
                 var arr = fnName.split(".");
                 // access global scope to find function
@@ -33,7 +33,7 @@ var ex;
                     fn = fn[arr[i]];
                 }
                 return fn;
-            }
+            };
             var PackFile = (function (_super) {
                 __extends(PackFile, _super);
                 /**
@@ -73,7 +73,6 @@ var ex;
                             var file = _a[_i];
                             // process file
                             var resource;
-                            var data;
                             switch (file.type) {
                                 case ManifestFileType.Sound:
                                     var paths = typeof file.path === "string" ? [file.path] : file.path;
@@ -82,7 +81,9 @@ var ex;
                                     break;
                                 case ManifestFileType.Texture:
                                     resource = new ex.Texture(file.path, this.bustCache);
-                                    data = zip.file(file.path);
+                                    resource.setData(new Blob([
+                                        zip.file(file.path).asUint8Array()
+                                    ], { type: 'application/octet-binary' }));
                                     break;
                                 case ManifestFileType.Generic:
                                     if (!file.resourceType) {
@@ -98,8 +99,8 @@ var ex;
                                     resource = new ResourceClass(file.path, file.responseType, this.bustCache);
                                     break;
                             }
-                            // load and process resource
-                            resource.processData(data);
+                            // load immediately to resolve pending promises
+                            resource.load();
                             // populate resource hashmap
                             this._resourceObj[file.name] = resource;
                         }

@@ -1,0 +1,44 @@
+<html>
+   <head>
+      <title>Excalibur Pack Test</title>      
+   </head>
+   <body>
+      
+      <canvas id="game"></canvas>
+      
+      <script src="../bower_components/jszip/dist/jszip.js"></script>
+      <script src="../Excalibur/dist/Excalibur.js"></script>
+      <script src="../dist/excalibur-pack.js"></script>
+      <script>
+         (function () {
+            
+            // todo test
+            var file = "assets/assets.zip";
+            
+            var game = new ex.Engine({
+               canvasElementId: "game",
+               height: 400,
+               width: 400
+            });
+            
+            var loader = new ex.Loader();
+            var Resources = {};
+            
+            loader.addResource(new ex.Extensions.Pack.PackFile(
+               file, Resources
+            ));
+            
+            game.start(loader).then(function () {
+               
+               ex.Logger.getInstance().info("Loaded resources", Resources);
+               
+               var actor = new ex.Actor(50, 50, 50, 50);
+               
+               actor.addDrawing(Resources.angry);
+               
+               game.add(actor);
+            });
+         })();
+      </script>
+   </body>
+</html>
