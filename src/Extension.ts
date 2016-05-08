@@ -1,60 +1,10 @@
 /// <reference path="../Excalibur/dist/Excalibur.d.ts" />
 /// <reference path="../lib/jszip.d.ts" />
+/// <reference path="ManifestFileType.ts" />
+/// <reference path="PackManifest.ts" />
+/// <reference path="PackManifestFile.ts" />
 
-namespace ex.Extensions.Pack {
-   
-   enum ManifestFileType {
-      Sound = 0,
-      Texture = 1,
-      Generic = 2
-   }
-   
-   interface PackManifest {
-      
-      /**
-       * List of asset file definitions
-       */
-      files: PackManifestFile[];
-      
-   }
-   
-   interface PackManifestFile {
-      
-      type: ManifestFileType;
-      
-      path: string|string[];
-      
-      name: string;
-      
-      //
-      // Generic resource options
-      //
-      
-      resourceType?: string;
-      responseType?: string;
-   }
-   
-   /**
-    * Finds a function from its string representation, if it exists.
-    *
-    * @param str The function name
-    * @see http://stackoverflow.com/a/2441972
-    */
-   var strToFn = function strToFn(fnName: string): any {
-      
-      // split namespaces
-      var arr = fnName.split(".");
-
-      // access global scope to find function
-      var fn: {} = (window || this), i: number, len: number;    
-      
-      // find function starting from global namespace  
-      for (i = 0, len = arr.length; i < len; i++) {
-         fn = fn[arr[i]];
-      }
-      
-      return <FunctionConstructor>fn;
-   }
+namespace ex.Extensions.Pack {           
    
    export class PackFile extends ex.Resource<{[key: string]: ILoadable}> {
       
@@ -111,9 +61,19 @@ namespace ex.Extensions.Pack {
                switch (file.type) {
                   case ManifestFileType.Sound:
                      var paths: string[] = typeof file.path === "string" ? [<string>file.path] : <string[]>file.path;
-                     resource = <ex.Sound>ex.Sound.apply(this, paths);
+                     resource = new (Function.prototype.bind.apply(ex.Sound, paths));
                      
-                     data = zip.file((<ex.Sound>resource).sound.path);
+                     var zf = zip.file((<ex.Sound>resource).sound.path);
+                     
+                     // try arraybuffer (WebAudio)
+                     try {
+                           resource.setData(zf.asArrayBuffer());
+                     } catch (e) {
+                        // try blob (AudioTag)
+                        resource.setData(new Blob([
+                              zip.file((<ex.Sound>resource).sound.path).asUint8Array()
+                        ], { type: 'application/octet-binary' }));
+                     }
                      
                      break;
                   case ManifestFileType.Texture:
@@ -149,5 +109,27 @@ namespace ex.Extensions.Pack {
             return this._resourceObj;
          }
       }
-   }     
+   }    
+   
+   /**
+    * Finds a function from its string representation, if it exists.
+    *
+    * @param str The function name
+    * @see http://stackoverflow.com/a/2441972
+    */
+   var strToFn = function strToFn(fnName: string): any {
+      
+      // split namespaces
+      var arr = fnName.split(".");
+
+      // access global scope to find function
+      var fn: {} = (window || this), i: number, len: number;    
+      
+      // find function starting from global namespace  
+      for (i = 0, len = arr.length; i < len; i++) {
+         fn = fn[arr[i]];
+      }
+      
+      return <FunctionConstructor>fn;
+   } 
 }

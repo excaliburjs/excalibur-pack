@@ -1,5 +1,3 @@
-/// <reference path="../Excalibur/dist/Excalibur.d.ts" />
-/// <reference path="../lib/jszip.d.ts" />
 var __extends = (this && this.__extends) || function (d, b) {
     for (var p in b) if (b.hasOwnProperty(p)) d[p] = b[p];
     function __() { this.constructor = d; }
@@ -11,29 +9,26 @@ var ex;
     (function (Extensions) {
         var Pack;
         (function (Pack) {
-            var ManifestFileType;
             (function (ManifestFileType) {
                 ManifestFileType[ManifestFileType["Sound"] = 0] = "Sound";
                 ManifestFileType[ManifestFileType["Texture"] = 1] = "Texture";
                 ManifestFileType[ManifestFileType["Generic"] = 2] = "Generic";
-            })(ManifestFileType || (ManifestFileType = {}));
-            /**
-             * Finds a function from its string representation, if it exists.
-             *
-             * @param str The function name
-             * @see http://stackoverflow.com/a/2441972
-             */
-            var strToFn = function strToFn(fnName) {
-                // split namespaces
-                var arr = fnName.split(".");
-                // access global scope to find function
-                var fn = (window || this), i, len;
-                // find function starting from global namespace  
-                for (i = 0, len = arr.length; i < len; i++) {
-                    fn = fn[arr[i]];
-                }
-                return fn;
-            };
+            })(Pack.ManifestFileType || (Pack.ManifestFileType = {}));
+            var ManifestFileType = Pack.ManifestFileType;
+        })(Pack = Extensions.Pack || (Extensions.Pack = {}));
+    })(Extensions = ex.Extensions || (ex.Extensions = {}));
+})(ex || (ex = {}));
+/// <reference path="../Excalibur/dist/Excalibur.d.ts" />
+/// <reference path="../lib/jszip.d.ts" />
+/// <reference path="ManifestFileType.ts" />
+/// <reference path="PackManifest.ts" />
+/// <reference path="PackManifestFile.ts" />
+var ex;
+(function (ex) {
+    var Extensions;
+    (function (Extensions) {
+        var Pack;
+        (function (Pack) {
             var PackFile = (function (_super) {
                 __extends(PackFile, _super);
                 /**
@@ -74,18 +69,28 @@ var ex;
                             // process file
                             var resource;
                             switch (file.type) {
-                                case ManifestFileType.Sound:
+                                case Pack.ManifestFileType.Sound:
                                     var paths = typeof file.path === "string" ? [file.path] : file.path;
-                                    resource = ex.Sound.apply(this, paths);
-                                    data = zip.file(resource.sound.path);
+                                    resource = new (Function.prototype.bind.apply(ex.Sound, paths));
+                                    var zf = zip.file(resource.sound.path);
+                                    // try arraybuffer (WebAudio)
+                                    try {
+                                        resource.setData(zf.asArrayBuffer());
+                                    }
+                                    catch (e) {
+                                        // try blob (AudioTag)
+                                        resource.setData(new Blob([
+                                            zip.file(resource.sound.path).asUint8Array()
+                                        ], { type: 'application/octet-binary' }));
+                                    }
                                     break;
-                                case ManifestFileType.Texture:
+                                case Pack.ManifestFileType.Texture:
                                     resource = new ex.Texture(file.path, this.bustCache);
                                     resource.setData(new Blob([
                                         zip.file(file.path).asUint8Array()
                                     ], { type: 'application/octet-binary' }));
                                     break;
-                                case ManifestFileType.Generic:
+                                case Pack.ManifestFileType.Generic:
                                     if (!file.resourceType) {
                                         ex.Logger.getInstance().warn("No resource type found for asset " + file.path + ", skipping resource...");
                                         continue;
@@ -108,8 +113,25 @@ var ex;
                     }
                 };
                 return PackFile;
-            })(ex.Resource);
+            }(ex.Resource));
             Pack.PackFile = PackFile;
+            /**
+             * Finds a function from its string representation, if it exists.
+             *
+             * @param str The function name
+             * @see http://stackoverflow.com/a/2441972
+             */
+            var strToFn = function strToFn(fnName) {
+                // split namespaces
+                var arr = fnName.split(".");
+                // access global scope to find function
+                var fn = (window || this), i, len;
+                // find function starting from global namespace  
+                for (i = 0, len = arr.length; i < len; i++) {
+                    fn = fn[arr[i]];
+                }
+                return fn;
+            };
         })(Pack = Extensions.Pack || (Extensions.Pack = {}));
     })(Extensions = ex.Extensions || (ex.Extensions = {}));
 })(ex || (ex = {}));

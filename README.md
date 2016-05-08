@@ -3,6 +3,12 @@
 Excalibur.js utility and extension that makes it easy to pack 
 up assets (during build) and load them in-game.
 
+# TODO
+
+- Compile asset zips in grunt/gulp
+- Test sounds
+- Test generic resources
+
 # Features
 
 - Load assets from a compressed file
