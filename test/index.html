@@ -11,7 +11,7 @@
       <script src="../dist/excalibur-pack.js"></script>
       <script>
          (function () {
-            
+                                   
             // todo test
             var file = "assets/assets.zip";
             
@@ -25,7 +25,13 @@
             var Resources = {};
             
             loader.addResource(new ex.Extensions.Pack.PackFile(
-               file, Resources
+               file, Resources, {
+                  getManifest: function (zipFile) {
+                     var data = JSON.parse(zipFile.asText());
+                     console.log("Generic resource loaded", data);
+                     return data;
+                  }
+               }
             ));
             
             game.start(loader).then(function () {

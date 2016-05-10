@@ -19,6 +19,12 @@
          "type": 0,
          "path": ["sound.wav", "sound.mp3"],
          "name": "sound"
+      },
+      {
+         "type": 2,
+         "path": "manifest.json",
+         "name": "manifest",
+         "factory": "getManifest"
       }
    ]
 }

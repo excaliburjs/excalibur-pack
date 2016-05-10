@@ -35,11 +35,14 @@ var ex;
                  * Load a pack file
                  *
                  * @param path The path to the pack file
+                 * @param factories Handlers for generic resource types that take a JSZipObject and return the processed data
                  * @param resourceObj A reference to an object to attach loaded assets to
                  */
-                function PackFile(path, resourceObj, bustCache) {
+                function PackFile(path, resourceObj, factories, bustCache) {
+                    if (factories === void 0) { factories = {}; }
                     if (bustCache === void 0) { bustCache = false; }
                     _super.call(this, path, "arraybuffer", bustCache);
+                    this.factories = factories;
                     // ensure we have a valid object to attach properties to
                     if (!resourceObj || typeof resourceObj !== "object") {
                         throw "Must pass a reference object to fill resource hash on";
@@ -91,17 +94,18 @@ var ex;
                                     ], { type: 'application/octet-binary' }));
                                     break;
                                 case Pack.ManifestFileType.Generic:
-                                    if (!file.resourceType) {
-                                        ex.Logger.getInstance().warn("No resource type found for asset " + file.path + ", skipping resource...");
+                                    if (!file.factory) {
+                                        ex.Logger.getInstance().warn("No resource factory defined for asset " + file.path + ", skipping resource...");
                                         continue;
                                     }
-                                    var ResourceClass = strToFn(file.resourceType);
-                                    if (!ResourceClass) {
-                                        ex.Logger.getInstance().warn("The function prototype '" + file.resourceType + "' was not found for resource " + file.path + ", skipping resource...");
+                                    var resourceFactory = this.factories[file.factory];
+                                    if (!resourceFactory) {
+                                        ex.Logger.getInstance().warn("The factory function '" + file.factory + "' was not found for resource " + file.path + ", skipping resource...");
                                         continue;
                                     }
-                                    // todo pass custom args
-                                    resource = new ResourceClass(file.path, file.responseType, this.bustCache);
+                                    resource = new ex.Resource(file.path, '');
+                                    resource.processData = resourceFactory;
+                                    resource.setData(zip.file(file.path));
                                     break;
                             }
                             // load immediately to resolve pending promises
@@ -121,11 +125,11 @@ var ex;
              * @param str The function name
              * @see http://stackoverflow.com/a/2441972
              */
-            var strToFn = function strToFn(fnName) {
+            var strToFn = function strToFn(fnName, scope) {
                 // split namespaces
                 var arr = fnName.split(".");
-                // access global scope to find function
-                var fn = (window || this), i, len;
+                // access scope to find function
+                var fn = (scope || window || this), i, len;
                 // find function starting from global namespace  
                 for (i = 0, len = arr.length; i < len; i++) {
                     fn = fn[arr[i]];

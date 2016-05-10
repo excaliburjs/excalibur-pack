@@ -14,9 +14,10 @@ namespace ex.Extensions.Pack {
        * Load a pack file
        * 
        * @param path The path to the pack file
+       * @param factories Handlers for generic resource types that take a JSZipObject and return the processed data
        * @param resourceObj A reference to an object to attach loaded assets to
        */
-      constructor(path: string, resourceObj: {[key: string]: ILoadable}, bustCache = false) {
+      constructor(path: string, resourceObj: {[key: string]: ILoadable}, public factories: {[key: string]: (zipFile: JSZipObject) => any} = {}, bustCache = false) {
          super(path, "arraybuffer", bustCache);
          
          // ensure we have a valid object to attach properties to
@@ -85,17 +86,18 @@ namespace ex.Extensions.Pack {
                      
                      break;
                   case ManifestFileType.Generic:
-                     if (!file.resourceType) {
-                        ex.Logger.getInstance().warn(`No resource type found for asset ${file.path}, skipping resource...`);
+                     if (!file.factory) {
+                        ex.Logger.getInstance().warn(`No resource factory defined for asset ${file.path}, skipping resource...`);
                         continue;
                      }
-                     var ResourceClass: any = strToFn(file.resourceType);
-                     if (!ResourceClass) {
-                        ex.Logger.getInstance().warn(`The function prototype '${file.resourceType}' was not found for resource ${file.path}, skipping resource...`);
+                     var resourceFactory = this.factories[file.factory];
+                     if (!resourceFactory) {
+                        ex.Logger.getInstance().warn(`The factory function '${file.factory}' was not found for resource ${file.path}, skipping resource...`);
                         continue;
                      }
-                     // todo pass custom args
-                     resource = new ResourceClass(<string>file.path, file.responseType, this.bustCache);
+                     resource = new ex.Resource<any>(file.path, '');
+                     resource.processData = resourceFactory;
+                     resource.setData(zip.file(<string>file.path));
                      break;
                }
                
@@ -117,13 +119,13 @@ namespace ex.Extensions.Pack {
     * @param str The function name
     * @see http://stackoverflow.com/a/2441972
     */
-   var strToFn = function strToFn(fnName: string): any {
+   var strToFn = function strToFn(fnName: string, scope: any): any {
       
       // split namespaces
       var arr = fnName.split(".");
 
-      // access global scope to find function
-      var fn: {} = (window || this), i: number, len: number;    
+      // access scope to find function
+      var fn: {} = (scope || window || this), i: number, len: number;    
       
       // find function starting from global namespace  
       for (i = 0, len = arr.length; i < len; i++) {
