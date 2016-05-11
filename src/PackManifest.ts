@@ -1,5 +1,5 @@
 namespace ex.Extensions.Pack {
-   interface PackManifest {
+   export interface PackManifest {
          
       /**
        * List of asset file definitions

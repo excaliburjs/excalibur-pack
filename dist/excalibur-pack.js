@@ -3,24 +3,8 @@ var __extends = (this && this.__extends) || function (d, b) {
     function __() { this.constructor = d; }
     d.prototype = b === null ? Object.create(b) : (__.prototype = b.prototype, new __());
 };
-var ex;
-(function (ex) {
-    var Extensions;
-    (function (Extensions) {
-        var Pack;
-        (function (Pack) {
-            (function (ManifestFileType) {
-                ManifestFileType[ManifestFileType["Sound"] = 0] = "Sound";
-                ManifestFileType[ManifestFileType["Texture"] = 1] = "Texture";
-                ManifestFileType[ManifestFileType["Generic"] = 2] = "Generic";
-            })(Pack.ManifestFileType || (Pack.ManifestFileType = {}));
-            var ManifestFileType = Pack.ManifestFileType;
-        })(Pack = Extensions.Pack || (Extensions.Pack = {}));
-    })(Extensions = ex.Extensions || (ex.Extensions = {}));
-})(ex || (ex = {}));
 /// <reference path="../Excalibur/dist/Excalibur.d.ts" />
 /// <reference path="../lib/jszip.d.ts" />
-/// <reference path="ManifestFileType.ts" />
 /// <reference path="PackManifest.ts" />
 /// <reference path="PackManifestFile.ts" />
 var ex;
@@ -38,11 +22,11 @@ var ex;
                  * @param factories Handlers for generic resource types that take a JSZipObject and return the processed data
                  * @param resourceObj A reference to an object to attach loaded assets to
                  */
-                function PackFile(path, resourceObj, factories, bustCache) {
-                    if (factories === void 0) { factories = {}; }
+                function PackFile(path, resourceObj, typeHandlers, bustCache) {
+                    if (typeHandlers === void 0) { typeHandlers = {}; }
                     if (bustCache === void 0) { bustCache = false; }
                     _super.call(this, path, "arraybuffer", bustCache);
-                    this.factories = factories;
+                    this.typeHandlers = typeHandlers;
                     // ensure we have a valid object to attach properties to
                     if (!resourceObj || typeof resourceObj !== "object") {
                         throw "Must pass a reference object to fill resource hash on";
@@ -66,50 +50,54 @@ var ex;
                         }
                         // read JSON from manifest
                         var manifest = JSON.parse(manifestFile.asText());
+                        var loaded = 0;
                         // load assets according to manifest
                         for (var _i = 0, _a = manifest.files; _i < _a.length; _i++) {
                             var file = _a[_i];
                             // process file
                             var resource;
-                            switch (file.type) {
-                                case Pack.ManifestFileType.Sound:
-                                    var paths = typeof file.path === "string" ? [file.path] : file.path;
-                                    resource = new (Function.prototype.bind.apply(ex.Sound, paths));
-                                    var zf = zip.file(resource.sound.path);
-                                    // try arraybuffer (WebAudio)
-                                    try {
-                                        resource.setData(zf.asArrayBuffer());
-                                    }
-                                    catch (e) {
-                                        // try blob (AudioTag)
-                                        resource.setData(new Blob([
-                                            zip.file(resource.sound.path).asUint8Array()
-                                        ], { type: 'application/octet-binary' }));
-                                    }
+                            var resourceHandler;
+                            var handlers = ex.Extensions.Pack.Handlers;
+                            // iterate all handlers
+                            for (var type in handlers) {
+                                if (!handlers.hasOwnProperty(type))
+                                    continue;
+                                // override matcher and use this handler
+                                if (file.type === type) {
+                                    resourceHandler = handlers[type];
                                     break;
-                                case Pack.ManifestFileType.Texture:
-                                    resource = new ex.Texture(file.path, this.bustCache);
-                                    resource.setData(new Blob([
-                                        zip.file(file.path).asUint8Array()
-                                    ], { type: 'application/octet-binary' }));
+                                }
+                                // check if handler can handle this file extension(s)
+                                var h = handlers[type];
+                                if (!h.canHandle)
+                                    continue;
+                                if (typeof file.path === "string" && h.canHandle(file.path)) {
+                                    resourceHandler = h;
                                     break;
-                                case Pack.ManifestFileType.Generic:
-                                    if (!file.factory) {
-                                        ex.Logger.getInstance().warn("No resource factory defined for asset " + file.path + ", skipping resource...");
-                                        continue;
+                                }
+                                else if (file.path instanceof Array) {
+                                    // check each path
+                                    for (var _b = 0, _c = file.path; _b < _c.length; _b++) {
+                                        var path = _c[_b];
+                                        // handles at least one of the files
+                                        if (h.canHandle(path)) {
+                                            resourceHandler = h;
+                                            break;
+                                        }
                                     }
-                                    var resourceFactory = this.factories[file.factory];
-                                    if (!resourceFactory) {
-                                        ex.Logger.getInstance().warn("The factory function '" + file.factory + "' was not found for resource " + file.path + ", skipping resource...");
-                                        continue;
-                                    }
-                                    resource = new ex.Resource(file.path, '');
-                                    resource.processData = resourceFactory;
-                                    resource.setData(zip.file(file.path));
-                                    break;
+                                }
                             }
+                            if (!resourceHandler) {
+                                ex.Logger.getInstance().warn("Could not find resource handler for file", file, "of type", file.type);
+                                continue;
+                            }
+                            // handle resource
+                            resource = resourceHandler.handle(file, zip);
                             // load immediately to resolve pending promises
                             resource.load();
+                            // progress               
+                            loaded++;
+                            this.onprogress({ loaded: loaded, total: manifest.files.length });
                             // populate resource hashmap
                             this._resourceObj[file.name] = resource;
                         }
@@ -119,23 +107,205 @@ var ex;
                 return PackFile;
             }(ex.Resource));
             Pack.PackFile = PackFile;
-            /**
-             * Finds a function from its string representation, if it exists.
-             *
-             * @param str The function name
-             * @see http://stackoverflow.com/a/2441972
-             */
-            var strToFn = function strToFn(fnName, scope) {
-                // split namespaces
-                var arr = fnName.split(".");
-                // access scope to find function
-                var fn = (scope || window || this), i, len;
-                // find function starting from global namespace  
-                for (i = 0, len = arr.length; i < len; i++) {
-                    fn = fn[arr[i]];
+        })(Pack = Extensions.Pack || (Extensions.Pack = {}));
+    })(Extensions = ex.Extensions || (ex.Extensions = {}));
+})(ex || (ex = {}));
+var ex;
+(function (ex) {
+    var Extensions;
+    (function (Extensions) {
+        var Pack;
+        (function (Pack) {
+            var Util;
+            (function (Util) {
+                /**
+                 * Whether or not a given filename ends with any of the provided extensions (without a '.')
+                 */
+                function hasFileExtensions(filename) {
+                    var extensions = [];
+                    for (var _i = 1; _i < arguments.length; _i++) {
+                        extensions[_i - 1] = arguments[_i];
+                    }
+                    var paths = filename.split('/');
+                    var file = paths[paths.length - 1];
+                    var parts = file.split('.');
+                    var extension = parts[parts.length - 1];
+                    return extensions.indexOf(extension) > -1;
                 }
-                return fn;
-            };
+                Util.hasFileExtensions = hasFileExtensions;
+                function wrapGenericResource(file, zip, handler) {
+                    var resource = new ex.Resource(file.path, 'application/octet-binary');
+                    resource.processData = handler;
+                    resource.setData(zip.file(file.path));
+                    return resource;
+                }
+                Util.wrapGenericResource = wrapGenericResource;
+                function createBlob(zipFile) {
+                    return new Blob([zipFile.asUint8Array()], { type: 'application/octet-binary' });
+                }
+                Util.createBlob = createBlob;
+            })(Util = Pack.Util || (Pack.Util = {}));
+        })(Pack = Extensions.Pack || (Extensions.Pack = {}));
+    })(Extensions = ex.Extensions || (ex.Extensions = {}));
+})(ex || (ex = {}));
+var ex;
+(function (ex) {
+    var Extensions;
+    (function (Extensions) {
+        var Pack;
+        (function (Pack) {
+            var Handlers;
+            (function (Handlers) {
+                Handlers.binary = {
+                    canHandle: function (filename) {
+                        // must use explicitly
+                        return false;
+                    },
+                    handle: function (file, zip) {
+                        return Pack.Util.wrapGenericResource(file, zip, function (zipFile) {
+                            if (!zipFile)
+                                return null;
+                            return zipFile.asBinary();
+                        });
+                    }
+                };
+            })(Handlers = Pack.Handlers || (Pack.Handlers = {}));
+        })(Pack = Extensions.Pack || (Extensions.Pack = {}));
+    })(Extensions = ex.Extensions || (ex.Extensions = {}));
+})(ex || (ex = {}));
+var ex;
+(function (ex) {
+    var Extensions;
+    (function (Extensions) {
+        var Pack;
+        (function (Pack) {
+            var Handlers;
+            (function (Handlers) {
+                Handlers.blob = {
+                    canHandle: function (filename) {
+                        // must use explicitly
+                        return false;
+                    },
+                    handle: function (file, zip) {
+                        return Pack.Util.wrapGenericResource(file, zip, function (zipFile) {
+                            if (!zipFile)
+                                return null;
+                            var blob = Pack.Util.createBlob(zipFile);
+                            var blobUrl = URL.createObjectURL(blob);
+                            ex.Logger.getInstance().debug("[ex.Extensions.Pack] Loaded resource type `blob` for file", zipFile.name, blobUrl);
+                            return blobUrl;
+                        });
+                    }
+                };
+            })(Handlers = Pack.Handlers || (Pack.Handlers = {}));
+        })(Pack = Extensions.Pack || (Extensions.Pack = {}));
+    })(Extensions = ex.Extensions || (ex.Extensions = {}));
+})(ex || (ex = {}));
+var ex;
+(function (ex) {
+    var Extensions;
+    (function (Extensions) {
+        var Pack;
+        (function (Pack) {
+            var Handlers;
+            (function (Handlers) {
+                Handlers.json = {
+                    canHandle: function (filename) {
+                        return Pack.Util.hasFileExtensions(filename, 'json');
+                    },
+                    handle: function (file, zip) {
+                        return Pack.Util.wrapGenericResource(file, zip, function (zipFile) {
+                            if (!zipFile)
+                                return null;
+                            var json = JSON.parse(zipFile.asText());
+                            ex.Logger.getInstance().debug("[ex.Extensions.Pack] Loaded resource type `json` for file", zipFile.name, json);
+                            return json;
+                        });
+                    }
+                };
+            })(Handlers = Pack.Handlers || (Pack.Handlers = {}));
+        })(Pack = Extensions.Pack || (Extensions.Pack = {}));
+    })(Extensions = ex.Extensions || (ex.Extensions = {}));
+})(ex || (ex = {}));
+var ex;
+(function (ex) {
+    var Extensions;
+    (function (Extensions) {
+        var Pack;
+        (function (Pack) {
+            var Handlers;
+            (function (Handlers) {
+                Handlers.sound = {
+                    canHandle: function (filename) {
+                        return Pack.Util.hasFileExtensions(filename, 'wav', 'mp3', 'ogg');
+                    },
+                    handle: function (file, zip) {
+                        var paths = typeof file.path === "string" ? [file.path] : file.path;
+                        var resource = new (Function.prototype.bind.apply(ex.Sound, paths));
+                        var zf = zip.file(resource.sound.path);
+                        // try arraybuffer (WebAudio)
+                        try {
+                            resource.setData(zf.asArrayBuffer());
+                        }
+                        catch (e) {
+                            // try blob (AudioTag)
+                            resource.setData(new Blob([
+                                zf.asUint8Array()
+                            ], { type: 'application/octet-binary' }));
+                        }
+                        ex.Logger.getInstance().debug("[ex.Extensions.Pack] Loaded resource type `sound` for file", zf.name);
+                        return resource;
+                    }
+                };
+            })(Handlers = Pack.Handlers || (Pack.Handlers = {}));
+        })(Pack = Extensions.Pack || (Extensions.Pack = {}));
+    })(Extensions = ex.Extensions || (ex.Extensions = {}));
+})(ex || (ex = {}));
+var ex;
+(function (ex) {
+    var Extensions;
+    (function (Extensions) {
+        var Pack;
+        (function (Pack) {
+            var Handlers;
+            (function (Handlers) {
+                Handlers.text = {
+                    canHandle: function (filename) {
+                        return Pack.Util.hasFileExtensions(filename, 'txt');
+                    },
+                    handle: function (file, zip) {
+                        return Pack.Util.wrapGenericResource(file, zip, function (zipFile) {
+                            if (!zipFile)
+                                return null;
+                            return zipFile.asText();
+                        });
+                    }
+                };
+            })(Handlers = Pack.Handlers || (Pack.Handlers = {}));
+        })(Pack = Extensions.Pack || (Extensions.Pack = {}));
+    })(Extensions = ex.Extensions || (ex.Extensions = {}));
+})(ex || (ex = {}));
+var ex;
+(function (ex) {
+    var Extensions;
+    (function (Extensions) {
+        var Pack;
+        (function (Pack) {
+            var Handlers;
+            (function (Handlers) {
+                Handlers.texture = {
+                    canHandle: function (filename) {
+                        return Pack.Util.hasFileExtensions(filename, 'jpg', 'png', 'gif');
+                    },
+                    handle: function (file, zip) {
+                        var resource = new ex.Texture(file.path, this.bustCache);
+                        var zf = zip.file(file.path);
+                        resource.setData(Pack.Util.createBlob(zf));
+                        ex.Logger.getInstance().debug("[ex.Extensions.Pack] Loaded resource type `texture` for file", zf.name);
+                        return resource;
+                    }
+                };
+            })(Handlers = Pack.Handlers || (Pack.Handlers = {}));
         })(Pack = Extensions.Pack || (Extensions.Pack = {}));
     })(Extensions = ex.Extensions || (ex.Extensions = {}));
 })(ex || (ex = {}));

@@ -2,17 +2,10 @@ namespace ex.Extensions.Pack {
    
    export interface PackManifestFile {
       
-      type: ManifestFileType;
+      type: string;
       
       path: string|string[];
       
       name: string;
-      
-      //
-      // Generic resource options
-      //
-      
-      resourceType?: string;
-      responseType?: string;
    }
 }
